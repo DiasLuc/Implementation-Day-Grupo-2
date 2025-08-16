@@ -1,6 +1,6 @@
 # Dependências
 node_modules/
-
+mocha-reports
 # Arquivos de ambiente
 .env
 .env.local

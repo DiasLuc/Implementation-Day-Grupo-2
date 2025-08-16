@@ -1,0 +1,67 @@
+name: Node.js CI
+
+on:
+  push:
+    branches: [ main ]
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v3
+
+    - name: Setup Node.js
+      uses: actions/setup-node@v3
+      with:
+        node-version: '16.x'
+
+    - name: Install dependencies
+      run: npm install
+
+    - name: Create .env file
+      run: |
+        echo "PORT=7000" > .env
+        echo "JWT_SECRET=academia_gamificacao_secret" >> .env
+        echo "BASE_URL=http://localhost:7000" >> .env
+        echo "SWAGGER_URL=/api-docs" >> .env
+
+    - name: Install lsof
+      run: sudo apt-get install -y lsof
+
+    - name: Check if port is in use and kill process if needed
+      run: |
+        if lsof -i:7000; then
+          echo "Port 7000 is in use. Attempting to kill the process..."
+          lsof -i:7000 -t | xargs kill -9 || true
+        else
+          echo "Port 7000 is available"
+        fi
+
+    - name: Start server in background
+      run: npm start &
+
+    - name: Wait for server to start
+      run: |
+        echo "Waiting for server to start..."
+        sleep 10
+        echo "Checking if server is running..."
+        curl -s http://localhost:7000 || echo "Server may not be running properly"
+
+    - name: Run tests
+      id: run_tests
+      run: npm test
+      continue-on-error: true
+
+    - name: Check test results
+      if: steps.run_tests.outcome != 'success'
+      run: |
+        echo "Tests failed. Checking server logs..."
+        ps aux | grep node
+        echo "Attempting to access the API..."
+        curl -v http://localhost:7000/api-docs || true
+
+    - name: Ensure tests passed
+      if: steps.run_tests.outcome != 'success'
+      run: exit 1
